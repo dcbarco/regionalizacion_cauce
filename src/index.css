@@ -1,0 +1,41 @@
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Roboto+Mono:wght@400;500;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-serif: "Instrument Serif", serif;
+  --font-mono: "Roboto Mono", monospace;
+  
+  --color-cauce-neon: #00E5FF;
+}
+
+@layer utilities {
+  .glass {
+    background: rgba(20, 20, 25, 0.7);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8);
+  }
+  .neon-text {
+    color: #00E5FF;
+    text-shadow: 0 0 10px rgba(0, 229, 255, 0.5);
+  }
+  .neon-border {
+    border-color: #00E5FF;
+    box-shadow: 0 0 15px rgba(0, 229, 255, 0.3);
+  }
+}
+
+body {
+  font-family: var(--font-mono);
+  background-color: #050505;
+  background-image: radial-gradient(circle at 50% 50%, #112222 0%, #050505 100%);
+  color: #ffffff;
+  overflow: hidden;
+  touch-action: none;
+}
+
+::-webkit-scrollbar {
+  width: 0px;
+  background: transparent;
+}

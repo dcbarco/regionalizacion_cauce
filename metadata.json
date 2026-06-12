@@ -1,0 +1,6 @@
+{
+  "name": "Circuito CAUCE - Regionalización U de Caldas",
+  "description": "Una aplicación web interactiva 3D optimizada para kiosco, visualizando el impacto de la regionalización de la Universidad de Caldas usando Mapbox GL JS.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
