@@ -11,7 +11,7 @@ import caldasBoundary from '../data/caldasBoundary.json';
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
 const CALDAS_CENTER: [number, number] = [-75.35, 5.38];
-const GLOBAL_ZOOM = 8.5;
+const GLOBAL_ZOOM = 9.2;
 const GLOBAL_PITCH = 50;
 
 // WE NEVER CHANGE THIS. WebGL context remains ultra-stable.

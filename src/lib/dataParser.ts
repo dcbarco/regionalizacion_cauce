@@ -2,11 +2,16 @@ import Papa from 'papaparse';
 import { rawCsvData } from '../data/csvRaw';
 import { getMpioCoordinates } from '../data/coordinates';
 
+export interface Program {
+  programa: string;
+  estrategia: string;
+  total: number;
+}
+
 export interface Institution {
   id: string;
   name: string;
-  programa: string;
-  estrategia: string;
+  programas: Program[];
   total: number;
   mpio: string;
   zona: string;
@@ -82,22 +87,31 @@ export function parseData(): RegionData {
 
     mpiosMap[mpio].totalStudents += total;
 
-    // Track count per mpio for deterministic jitter
-    if (!ioMapCount[mpio]) ioMapCount[mpio] = 0;
-    ioMapCount[mpio] += 1;
+    let inst = mpiosMap[mpio].institutions.find((i) => i.name === ieName);
+    if (!inst) {
+      if (!ioMapCount[mpio]) ioMapCount[mpio] = 0;
+      ioMapCount[mpio] += 1;
 
-    const baseCoords = getMpioCoordinates(mpio);
-    const coords = getJitteredCoords(baseCoords, ioMapCount[mpio]);
+      const baseCoords = getMpioCoordinates(mpio);
+      const coords = getJitteredCoords(baseCoords, ioMapCount[mpio]);
 
-    mpiosMap[mpio].institutions.push({
-      id: `${mpio}-${ieName}-${ioMapCount[mpio]}`,
-      name: ieName,
-      estrategia: estrategia || '',
+      inst = {
+        id: `${mpio}-${ieName}-${ioMapCount[mpio]}`,
+        name: ieName,
+        programas: [],
+        total: 0,
+        mpio,
+        zona: zona || '',
+        coordinates: coords,
+      };
+      mpiosMap[mpio].institutions.push(inst);
+    }
+
+    inst.total += total;
+    inst.programas.push({
       programa: programa || '',
-      total,
-      mpio,
-      zona: zona || '',
-      coordinates: coords,
+      estrategia: estrategia || '',
+      total: total,
     });
   });
 

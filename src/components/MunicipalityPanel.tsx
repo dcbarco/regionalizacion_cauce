@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import { useAppStore } from '../store/appStore';
 import { motion, AnimatePresence } from 'motion/react';
-import { Users, Building, ArrowLeft, Droplets, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Users, Building, ArrowLeft, Droplets, ChevronLeft, ChevronRight, Info, X } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { cn } from '../lib/utils';
 
@@ -27,13 +27,20 @@ export default function MunicipalityPanel() {
     setIsCollapsed(false);
   }, [activeMunicipality?.name]);
 
+  const activeInstitution = useMemo(() => {
+    if (!activeMunicipality || !activeInstitutionId) return null;
+    return activeMunicipality.institutions.find(i => i.id === activeInstitutionId);
+  }, [activeMunicipality, activeInstitutionId]);
+
   const chartData = useMemo<ChartResult>(() => {
     if (!activeMunicipality) return { data: [], keys: [] };
 
     const countMap: Record<string, number> = {};
     activeMunicipality.institutions.forEach(inst => {
-      const g = inst.estrategia || 'OTROS';
-      countMap[g] = (countMap[g] || 0) + inst.total;
+      inst.programas.forEach(p => {
+        const g = p.estrategia || 'OTROS';
+        countMap[g] = (countMap[g] || 0) + p.total;
+      });
     });
 
     const keys = Object.keys(countMap);
@@ -46,8 +53,61 @@ export default function MunicipalityPanel() {
   if (!activeMunicipality) return null;
 
   return (
-    <AnimatePresence>
-      <motion.div
+    <>
+      {/* Floating Tooltip for Active Institution */}
+      <AnimatePresence>
+        {activeInstitution && (
+          <motion.div
+            key="tooltip-inst"
+            drag
+            dragMomentum={false}
+            initial={{ opacity: 0, scale: 0.9, y: "-50%", x: "-50%" }}
+            animate={{ opacity: 1, scale: 1, y: "-50%", x: "-50%" }}
+            exit={{ opacity: 0, scale: 0.9, y: "-50%", x: "-50%" }}
+            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+            className="fixed top-1/2 left-[calc(50%-225px)] z-50 w-[380px] glass p-6 rounded-2xl border border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)] flex flex-col pointer-events-auto backdrop-blur-xl bg-black/40 cursor-grab active:cursor-grabbing"
+          >
+            <div className="flex items-start gap-3 mb-6 relative">
+              <div className="p-2 bg-cyan-500/20 rounded-lg shrink-0 border border-cyan-500/30">
+                <Info className="w-6 h-6 text-cyan-400" />
+              </div>
+              <div className="pr-8">
+                <h4 className="font-serif text-2xl text-white leading-tight shadow-black drop-shadow-md">
+                  {activeInstitution.name}
+                </h4>
+                <p className="font-mono text-[10px] text-gray-400 mt-1 uppercase tracking-widest flex gap-2">
+                  <span>{activeInstitution.zona}</span>
+                </p>
+              </div>
+              <button 
+                onClick={() => setActiveInstitutionId(null)}
+                className="absolute top-0 right-0 text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 p-1 rounded-full transition-colors"
+                title="Cerrar detalle"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto max-h-[50vh] space-y-3 pr-2 custom-scrollbar">
+              <h5 className="font-mono text-[10px] text-cyan-500/70 uppercase tracking-widest mb-2 border-b border-white/5 pb-2">
+                Programas Ofertados ({activeInstitution.programas.length})
+              </h5>
+              {activeInstitution.programas.map((p, idx) => (
+                <div key={idx} className="flex flex-col gap-1 border-l-2 border-cyan-500/30 pl-3 py-2 bg-white/5 rounded-r-lg hover:bg-white/10 transition-colors">
+                  <div className="flex justify-between items-start gap-2">
+                    <span className="text-gray-300 font-bold text-[10px] tracking-wider uppercase">{p.estrategia}</span>
+                    <span className="text-cyan-400 font-mono text-sm font-bold bg-cyan-500/10 px-2 py-0.5 rounded">{p.total}</span>
+                  </div>
+                  <span className="text-xs text-gray-300 leading-relaxed font-sans">{p.programa}</span>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        <motion.div
         key="local-panel"
         initial={{ x: '100%', opacity: 0 }}
         animate={{ x: isCollapsed ? 450 : 0, opacity: 1 }}
@@ -159,9 +219,14 @@ export default function MunicipalityPanel() {
 
           {/* Institutions list */}
           <div className="space-y-4">
-            <h3 className="font-mono text-[10px] uppercase opacity-50 tracking-widest text-white">
-              Instituciones ({activeMunicipality.institutions.length})
-            </h3>
+            <div className="flex justify-between items-center px-4">
+              <h3 className="font-mono text-[10px] uppercase opacity-50 tracking-widest text-white">
+                Instituciones ({activeMunicipality.institutions.length})
+              </h3>
+              <div className="flex items-center gap-1 opacity-50 text-white" title="Estudiantes">
+                <Users className="w-3.5 h-3.5" />
+              </div>
+            </div>
             <div className="space-y-3">
               {activeMunicipality.institutions.map(inst => {
                 const isActive = activeInstitutionId === inst.id;
@@ -180,11 +245,7 @@ export default function MunicipalityPanel() {
                       <h4 className={cn("font-serif text-xl leading-tight", isActive ? "text-cyan-300" : "text-white")}>
                         {inst.name}
                       </h4>
-                      <span className="font-mono text-sm text-cyan-400 font-bold shrink-0">{inst.total}</span>
-                    </div>
-                    <div className="font-mono text-[10px] text-gray-500 mt-2 flex flex-col gap-1">
-                      <span className="text-gray-400">{inst.estrategia}</span>
-                      <span className="truncate">{inst.programa}</span>
+                      <span className="font-mono text-sm text-cyan-400 font-bold shrink-0 bg-white/5 px-2 py-1 rounded-md">{inst.total}</span>
                     </div>
                   </button>
                 );
@@ -210,5 +271,6 @@ export default function MunicipalityPanel() {
         </div>
       </motion.div>
     </AnimatePresence>
+    </>
   );
 }
