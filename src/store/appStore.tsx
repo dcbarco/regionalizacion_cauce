@@ -1,5 +1,7 @@
-import { createContext, useContext, useState, useMemo, type ReactNode } from 'react';
+import { createContext, useContext, useState, useMemo, useCallback, useEffect, type ReactNode } from 'react';
 import { parseData, RegionData, Municipality, Institution } from '../lib/dataParser';
+
+export type Theme = 'dark' | 'light';
 
 interface AppState {
   data: RegionData;
@@ -13,6 +15,8 @@ interface AppState {
   setSidebarOpen: (open: boolean) => void;
   isVideoModalOpen: boolean;
   setVideoModalOpen: (open: boolean) => void;
+  theme: Theme;
+  toggleTheme: () => void;
 }
 
 const AppContext = createContext<AppState | undefined>(undefined);
@@ -24,6 +28,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [activeSedeId, setActiveSedeId] = useState<string | null>(null);
   const [isSidebarOpen, setSidebarOpen] = useState(true);
   const [isVideoModalOpen, setVideoModalOpen] = useState(false);
+  const [theme, setTheme] = useState<Theme>('dark');
+
+  const toggleTheme = useCallback(() => {
+    setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+  }, []);
+
+  // Sync class on <html> so CSS custom properties respond
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === 'light') {
+      root.classList.add('light');
+      root.classList.remove('dark');
+    } else {
+      root.classList.add('dark');
+      root.classList.remove('light');
+    }
+  }, [theme]);
 
   return (
     <AppContext.Provider
@@ -39,6 +60,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setSidebarOpen,
         isVideoModalOpen,
         setVideoModalOpen,
+        theme,
+        toggleTheme,
       }}
     >
       {children}

@@ -9,6 +9,7 @@ import AppMap from './components/Map';
 import Sidebar from './components/Sidebar';
 import MunicipalityPanel from './components/MunicipalityPanel';
 import VideoModal from './components/VideoModal';
+import ThemeToggle from './components/ThemeToggle';
 
 function AppContent() {
   const { 
@@ -17,7 +18,8 @@ function AppContent() {
     setActiveInstitutionId,
     setActiveSedeId,
     setVideoModalOpen,
-    setSidebarOpen
+    setSidebarOpen,
+    theme,
   } = useAppStore();
 
   useEffect(() => {
@@ -63,11 +65,16 @@ function AppContent() {
   ]);
 
   return (
-    <div className="relative w-full h-screen overflow-hidden text-white selection:bg-cyan-500/30">
+    <div className={`relative w-full h-screen overflow-hidden selection:bg-cyan-500/30 ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>
       <AppMap />
       <Sidebar />
       <MunicipalityPanel />
       <VideoModal />
+
+      {/* Theme Toggle — top-right corner, always visible */}
+      <div className="absolute top-6 right-6 z-30">
+        <ThemeToggle />
+      </div>
     </div>
   );
 }
