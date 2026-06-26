@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import MapGL, { MapRef, Source, Layer, Marker } from 'react-map-gl/maplibre';
 import { useAppStore } from '../store/appStore';
-import { Landmark, Hand, PlayCircle } from 'lucide-react';
+import { Landmark, Droplet, PlayCircle } from 'lucide-react';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { SEDES_DATA } from '../data/sedesData';
 import { getMpioCoordinates } from '../data/coordinates';
@@ -44,8 +44,11 @@ export default function AppMap() {
 
   const mapRef = useRef<MapRef>(null);
   const animationRef = useRef<number | null>(null);
+  const waterPulseAnimRef = useRef<number | null>(null);
+  const pulseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isRotating = useRef(false);
   const [waterOpacity, setWaterOpacity] = useState(0);
+  const [isPulsingWater, setIsPulsingWater] = useState(true);
 
   const isLocal = !!activeMunicipality;
   const isLight = theme === 'light';
@@ -74,7 +77,7 @@ export default function AppMap() {
     ];
   }, [activeMunicipality]);
 
-  const updateWaterLayers = useCallback(() => {
+  const updateWaterLayers = useCallback((overrideOpacity?: number) => {
     const map = mapRef.current?.getMap();
     if (!map) return;
 
@@ -83,14 +86,16 @@ export default function AppMap() {
       const layers = map.getStyle()?.layers;
       if (!layers) return;
 
+      const opacity = overrideOpacity !== undefined ? overrideOpacity : waterOpacity;
+
       layers.forEach((layer) => {
         if (layer.id.includes('water') && layer.type === 'fill') {
           map.setPaintProperty(layer.id, 'fill-color', waterColor);
-          map.setPaintProperty(layer.id, 'fill-opacity', isLocal ? waterOpacity * 0.8 : waterOpacity * 0.5);
+          map.setPaintProperty(layer.id, 'fill-opacity', isLocal ? opacity * 0.8 : opacity * 0.5);
         }
         if (layer.id.includes('waterway') && layer.type === 'line') {
           map.setPaintProperty(layer.id, 'line-color', waterColor);
-          map.setPaintProperty(layer.id, 'line-opacity', isLocal ? waterOpacity : waterOpacity * 0.8);
+          map.setPaintProperty(layer.id, 'line-opacity', isLocal ? opacity : opacity * 0.8);
           map.setPaintProperty(layer.id, 'line-width', isLocal ? 3 : 1);
         }
       });
@@ -180,11 +185,49 @@ export default function AppMap() {
     const map = mapRef.current?.getMap();
     if (!map) return;
     if (map.isStyleLoaded()) updateWaterLayers();
-    map.on('style.load', updateWaterLayers);
+    
+    const handleStyleLoad = () => updateWaterLayers();
+    map.on('style.load', handleStyleLoad);
     return () => {
-      map.off('style.load', updateWaterLayers);
+      map.off('style.load', handleStyleLoad);
     };
   }, [updateWaterLayers]);
+
+  // Water pulse animation loop
+  useEffect(() => {
+    if (!isPulsingWater) {
+      if (waterPulseAnimRef.current !== null) {
+        cancelAnimationFrame(waterPulseAnimRef.current);
+        waterPulseAnimRef.current = null;
+      }
+      updateWaterLayers();
+      return;
+    }
+
+    let start = Date.now();
+    const animatePulse = () => {
+      const map = mapRef.current?.getMap();
+      if (!map || !map.isStyleLoaded()) {
+        waterPulseAnimRef.current = requestAnimationFrame(animatePulse);
+        return;
+      }
+      
+      const elapsed = Date.now() - start;
+      const rawSine = Math.sin((elapsed / 2500) * 2 * Math.PI); // full cycle every 2.5s
+      const pulsedValue = 0.2 + ((rawSine + 1) / 2) * 0.6; // oscillates between 0.2 and 0.8
+      
+      updateWaterLayers(pulsedValue);
+      waterPulseAnimRef.current = requestAnimationFrame(animatePulse);
+    };
+
+    waterPulseAnimRef.current = requestAnimationFrame(animatePulse);
+
+    return () => {
+      if (waterPulseAnimRef.current !== null) {
+        cancelAnimationFrame(waterPulseAnimRef.current);
+      }
+    };
+  }, [isPulsingWater, updateWaterLayers]);
 
   const activeSede = SEDES_DATA.find(s => s.id === activeSedeId);
 
@@ -263,30 +306,44 @@ export default function AppMap() {
 
         {!isLocal && (
           <div className="absolute bottom-8 left-[calc(50%+160px)] -translate-x-1/2 z-[100] flex items-center gap-4">
-            <div className="flex flex-col items-center glass px-6 py-3 rounded-full shadow-2xl">
+            <div 
+              className="flex flex-col items-center px-6 py-3 rounded-full shadow-2xl backdrop-blur-md border border-white/20"
+              style={{ background: isLight ? '#ea580c' : '#22d3ee' }}
+            >
               <label
                 className="text-[9px] font-mono tracking-[0.3em] uppercase mb-2 drop-shadow-md flex items-center gap-2"
-                style={{ color: isLight ? '#ea580c' : '#67e8f9' }}
+                style={{ color: isLight ? '#ffffff' : '#000000' }}
               >
-                Te rodea el agua <Hand className="w-3 h-3" style={{ color: isLight ? '#ea580c' : '#22d3ee' }} />
+                Te rodea el agua <Droplet className="w-3 h-3" style={{ color: isLight ? '#ffffff' : '#000000' }} />
               </label>
               <input
                 type="range"
                 min="0"
                 max="1"
                 step="0.05"
-                value={waterOpacity}
-                onChange={(e) => setWaterOpacity(parseFloat(e.target.value))}
-                className={`w-48 h-1 rounded-lg appearance-none cursor-pointer ${isLight ? 'accent-orange-600' : 'accent-cyan-400'}`}
-                style={{ background: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.2)' }}
+                value={isPulsingWater ? 0.5 : waterOpacity}
+                onChange={(e) => {
+                  setIsPulsingWater(false);
+                  setWaterOpacity(parseFloat(e.target.value));
+
+                  if (pulseTimeoutRef.current) {
+                    clearTimeout(pulseTimeoutRef.current);
+                  }
+                  pulseTimeoutRef.current = setTimeout(() => {
+                    setIsPulsingWater(true);
+                  }, 30000);
+                }}
+                className={`w-48 h-1 rounded-lg appearance-none cursor-pointer ${isLight ? 'accent-white' : 'accent-black'}`}
+                style={{ background: isLight ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.2)' }}
               />
             </div>
             
             <button 
               onClick={() => setVideoModalOpen(true)}
-              className="glass p-4 rounded-full shadow-2xl transition-all active:scale-95 group flex items-center justify-center"
+              className="p-4 rounded-full shadow-2xl transition-all active:scale-95 group flex items-center justify-center backdrop-blur-md border border-white/20"
               style={{
-                color: isLight ? '#ea580c' : '#22d3ee',
+                background: isLight ? '#ea580c' : '#22d3ee',
+                color: isLight ? '#ffffff' : '#000000',
               }}
               title="Repositorio de Anécdotas"
             >
