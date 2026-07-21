@@ -2,7 +2,8 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import MapGL, { MapRef, Source, Layer, Marker } from 'react-map-gl/maplibre';
 import { useAppStore } from '../store/appStore';
-import { Landmark, Droplet, PlayCircle } from 'lucide-react';
+import { Landmark, Droplet, PlayCircle, Maximize2, X } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { SEDES_DATA } from '../data/sedesData';
 import { getMpioCoordinates } from '../data/coordinates';
@@ -437,29 +438,32 @@ function SedeMarker({ sede, isActive, isFaded, isLight, onToggle }: SedeMarkerPr
         sede.impacted.map((mpioName, i) => {
           const coords = getMpioCoordinates(mpioName);
           if (!coords) return null;
+          const isSedeLocation = coords[0] === sede.coordinates[0] && coords[1] === sede.coordinates[1];
           return (
             <Marker
               key={`${sede.id}-${mpioName}`}
               longitude={coords[0]}
               latitude={coords[1]}
-              anchor="center"
-              style={{ zIndex: 10 }}
+              anchor={isSedeLocation ? "top" : "center"}
+              style={{ zIndex: isSedeLocation ? 60 : 10 }}
             >
               <div
                 className="relative flex flex-col items-center animate-in fade-in zoom-in duration-500"
                 style={{ animationDelay: `${i * 50}ms`, animationFillMode: 'both' }}
               >
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 bg-orange-500/20 rounded-full blur-[40px] pointer-events-none" />
+                {!isSedeLocation && (
+                  <div
+                    className="w-4 h-4 rounded-full animate-pulse border"
+                    style={{
+                      backgroundColor: '#fb923c',
+                      borderColor: isLight ? '#ea580c' : '#fff',
+                      boxShadow: '0 0 25px 8px rgba(255,123,0,0.8)',
+                    }}
+                  />
+                )}
                 <div
-                  className="w-4 h-4 rounded-full animate-pulse border"
-                  style={{
-                    backgroundColor: '#fb923c',
-                    borderColor: isLight ? '#ea580c' : '#fff',
-                    boxShadow: '0 0 25px 8px rgba(255,123,0,0.8)',
-                  }}
-                />
-                <div
-                  className="mt-2 px-2 py-1 backdrop-blur-md border rounded-md text-[11px] font-bold tracking-widest uppercase shadow-xl relative z-10 transition-transform hover:scale-110"
+                  className={`${isSedeLocation ? 'mt-7' : 'mt-2'} px-2 py-1 backdrop-blur-md border rounded-md text-[11px] font-bold tracking-widest uppercase shadow-xl relative z-10 transition-transform hover:scale-110`}
                   style={{
                     backgroundColor: isLight ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.8)',
                     borderColor: isLight ? 'rgba(234,88,12,0.4)' : 'rgba(255,123,0,0.5)',
@@ -482,79 +486,173 @@ interface SedeDetailPanelProps {
 }
 
 function SedeDetailPanel({ sede, isLight }: SedeDetailPanelProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
   return (
-    <div className="absolute top-8 right-8 z-[100] w-[400px] pointer-events-none">
-      <div className="glass neon-border border-2 p-8 rounded-2xl animate-in slide-in-from-right-4 fade-in duration-500 shadow-2xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-32 h-32 blur-3xl rounded-full" style={{ background: isLight ? 'rgba(234,88,12,0.1)' : 'rgba(34,211,238,0.2)' }} />
-        <div className="absolute bottom-0 left-0 w-32 h-32 blur-3xl rounded-full" style={{ background: isLight ? 'rgba(139,92,246,0.1)' : 'rgba(168,85,247,0.2)' }} />
+    <>
+      <div className="absolute top-8 right-8 z-[100] w-[400px] pointer-events-none">
+        <div className="glass neon-border border-2 p-8 rounded-2xl animate-in slide-in-from-right-4 fade-in duration-500 shadow-2xl relative overflow-hidden pointer-events-auto">
+          <div className="absolute top-0 right-0 w-32 h-32 blur-3xl rounded-full" style={{ background: isLight ? 'rgba(234,88,12,0.1)' : 'rgba(34,211,238,0.2)' }} />
+          <div className="absolute bottom-0 left-0 w-32 h-32 blur-3xl rounded-full" style={{ background: isLight ? 'rgba(139,92,246,0.1)' : 'rgba(168,85,247,0.2)' }} />
 
-        <div className="relative z-10">
-          <div
-            className="inline-block px-3 py-1 text-[10px] font-mono tracking-[0.2em] uppercase rounded-full mb-4"
-            style={{
-              backgroundColor: isLight ? 'rgba(234,88,12,0.1)' : 'rgba(0,229,255,0.2)',
-              color: isLight ? '#ea580c' : '#22d3ee',
-              border: `1px solid ${isLight ? 'rgba(234,88,12,0.3)' : 'rgba(0,229,255,0.5)'}`,
-            }}
-          >
-            Detalles de Sede
-          </div>
-
-          <h3 className="font-serif text-4xl mb-2 drop-shadow-md" style={{ color: isLight ? '#1a1a2e' : '#fff' }}>
-            {sede.name}
-          </h3>
-
-          <div className="flex items-center gap-2 mb-8">
-            <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: isLight ? '#ea580c' : '#22d3ee' }} />
-            <h4 className="font-mono text-sm tracking-widest uppercase" style={{ color: isLight ? '#c2410c' : '#cffafe' }}>
-              {sede.subregion}
-            </h4>
-          </div>
-
-          <div className="space-y-6">
-            <div className="rounded-xl p-5" style={{ backgroundColor: isLight ? 'rgba(0,0,0,0.03)' : 'rgba(0,0,0,0.4)', border: `1px solid ${isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.1)'}` }}>
-              <p className="font-mono text-[10px] uppercase tracking-widest mb-3 flex items-center gap-2" style={{ color: isLight ? '#ea580c' : '#22d3ee' }}>
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                Zonas Impactadas
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {sede.impacted.map(z => (
-                  <span
-                    key={z}
-                    className="px-2 py-1 rounded text-xs font-mono"
-                    style={{
-                      backgroundColor: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.05)',
-                      border: `1px solid ${isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.1)'}`,
-                      color: isLight ? '#374151' : '#e5e7eb',
-                    }}
-                  >
-                    {z}
-                  </span>
-                ))}
-              </div>
-            </div>
-
+          <div className="relative z-10">
             <div
-              className="rounded-xl p-5 flex items-center justify-between"
+              className="inline-block px-3 py-1 text-[10px] font-mono tracking-[0.2em] uppercase rounded-full mb-4"
               style={{
-                background: isLight
-                  ? 'linear-gradient(135deg, rgba(234,88,12,0.1) 0%, rgba(139,92,246,0.1) 100%)'
-                  : 'linear-gradient(135deg, rgba(34,211,238,0.2) 0%, rgba(168,85,247,0.2) 100%)',
-                border: `1px solid ${isLight ? 'rgba(234,88,12,0.2)' : 'rgba(0,229,255,0.3)'}`,
+                backgroundColor: isLight ? 'rgba(234,88,12,0.1)' : 'rgba(0,229,255,0.2)',
+                color: isLight ? '#ea580c' : '#22d3ee',
+                border: `1px solid ${isLight ? 'rgba(234,88,12,0.3)' : 'rgba(0,229,255,0.5)'}`,
               }}
             >
-              <div>
-                <p className="font-mono text-[10px] uppercase tracking-widest mb-1" style={{ color: isLight ? '#ea580c' : '#67e8f9' }}>Impacto Total</p>
-                <p className="font-sans text-xs" style={{ color: isLight ? '#6b7280' : '#9ca3af' }}>Estudiantes beneficiados</p>
+              Detalles de Sede
+            </div>
+
+            <h3 className="font-serif text-4xl mb-2 drop-shadow-md" style={{ color: isLight ? '#1a1a2e' : '#fff' }}>
+              {sede.name}
+            </h3>
+
+            <div className="flex items-center gap-2 mb-6">
+              <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: isLight ? '#ea580c' : '#22d3ee' }} />
+              <h4 className="font-mono text-sm tracking-widest uppercase" style={{ color: isLight ? '#c2410c' : '#cffafe' }}>
+                {sede.subregion}
+              </h4>
+            </div>
+
+            {sede.image && (
+              <div
+                onClick={() => setIsExpanded(true)}
+                className="mb-6 rounded-2xl overflow-hidden border shadow-lg group relative h-44 bg-slate-900/10 cursor-pointer transition-all duration-300 hover:shadow-2xl active:scale-[0.99]"
+                style={{
+                  borderColor: isLight ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.15)',
+                }}
+                title="Haz clic para ampliar la fotografía"
+              >
+                <img
+                  src={sede.image}
+                  alt={sede.name}
+                  className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLElement).style.display = 'none';
+                  }}
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-60 group-hover:opacity-30 transition-opacity" />
+
+                {/* Hover overlay hint */}
+                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-black/35 backdrop-blur-[2px]">
+                  <div className="px-3.5 py-2 rounded-full glass border border-white/40 flex items-center gap-2 text-white text-xs font-mono shadow-2xl transform group-hover:scale-105 transition-transform">
+                    <Maximize2 className="w-4 h-4" />
+                    <span>Ampliar foto</span>
+                  </div>
+                </div>
               </div>
-              <p className="font-serif text-5xl drop-shadow-lg" style={{ color: isLight ? '#1a1a2e' : '#fff' }}>{sede.impact}</p>
+            )}
+
+            <div className="space-y-6">
+              <div className="rounded-xl p-5" style={{ backgroundColor: isLight ? 'rgba(0,0,0,0.03)' : 'rgba(0,0,0,0.4)', border: `1px solid ${isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.1)'}` }}>
+                <p className="font-mono text-[10px] uppercase tracking-widest mb-3 flex items-center gap-2" style={{ color: isLight ? '#ea580c' : '#22d3ee' }}>
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  Zonas Impactadas
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {sede.impacted.map(z => (
+                    <span
+                      key={z}
+                      className="px-2 py-1 rounded text-xs font-mono"
+                      style={{
+                        backgroundColor: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.05)',
+                        border: `1px solid ${isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.1)'}`,
+                        color: isLight ? '#374151' : '#e5e7eb',
+                      }}
+                    >
+                      {z}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div
+                className="rounded-xl p-5 flex items-center justify-between"
+                style={{
+                  background: isLight
+                    ? 'linear-gradient(135deg, rgba(234,88,12,0.1) 0%, rgba(139,92,246,0.1) 100%)'
+                    : 'linear-gradient(135deg, rgba(34,211,238,0.2) 0%, rgba(168,85,247,0.2) 100%)',
+                  border: `1px solid ${isLight ? 'rgba(234,88,12,0.2)' : 'rgba(0,229,255,0.3)'}`,
+                }}
+              >
+                <div>
+                  <p className="font-mono text-[10px] uppercase tracking-widest mb-1" style={{ color: isLight ? '#ea580c' : '#67e8f9' }}>Impacto Total</p>
+                  <p className="font-sans text-xs" style={{ color: isLight ? '#6b7280' : '#9ca3af' }}>Estudiantes beneficiados</p>
+                </div>
+                <p className="font-serif text-5xl drop-shadow-lg" style={{ color: isLight ? '#1a1a2e' : '#fff' }}>{sede.impact}</p>
+              </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
+
+      {/* Animated Lightbox Modal for Photo Expansion */}
+      <AnimatePresence>
+        {isExpanded && sede.image && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setIsExpanded(false)}
+            className="fixed inset-0 z-[200] flex items-center justify-center p-4 sm:p-10 backdrop-blur-2xl bg-black/75 pointer-events-auto"
+          >
+            <motion.div
+              initial={{ scale: 0.85, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.85, opacity: 0, y: 20 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative max-w-5xl max-h-[90vh] glass rounded-3xl p-6 sm:p-8 border shadow-2xl overflow-hidden flex flex-col items-center"
+              style={{
+                borderColor: isLight ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.2)',
+                backgroundColor: isLight ? 'rgba(255,255,255,0.9)' : 'rgba(15,23,42,0.9)',
+              }}
+            >
+              {/* Close Button */}
+              <button
+                onClick={() => setIsExpanded(false)}
+                className="absolute top-4 right-4 z-20 p-3 rounded-full glass border transition-all hover:scale-110 active:scale-95 shadow-xl"
+                style={{
+                  color: isLight ? '#1a1a2e' : '#fff',
+                  backgroundColor: isLight ? 'rgba(255,255,255,0.9)' : 'rgba(30,41,59,0.9)',
+                  borderColor: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.2)',
+                }}
+                title="Cerrar vista ampliada"
+              >
+                <X className="w-6 h-6" />
+              </button>
+
+              <div className="w-full flex flex-col items-center gap-4">
+                <div
+                  className="rounded-2xl overflow-hidden shadow-2xl border max-h-[72vh] flex items-center justify-center bg-black/20"
+                  style={{ borderColor: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.15)' }}
+                >
+                  <img
+                    src={sede.image}
+                    alt={sede.name}
+                    className="max-h-[72vh] w-auto object-contain rounded-2xl"
+                  />
+                </div>
+                <div className="text-center">
+                  <h3 className="font-serif text-3xl font-bold" style={{ color: isLight ? '#1a1a2e' : '#fff' }}>
+                    {sede.name}
+                  </h3>
+                  <p className="font-mono text-xs uppercase tracking-widest mt-1" style={{ color: isLight ? '#ea580c' : '#22d3ee' }}>
+                    Subregión {sede.subregion}
+                  </p>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }
