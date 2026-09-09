@@ -11,9 +11,10 @@ import caldasBoundary from '../data/caldasBoundary.json';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
-const CALDAS_CENTER: [number, number] = [-75.35, 5.38];
-const GLOBAL_ZOOM = 8.7;
-const GLOBAL_PITCH = 50;
+const CALDAS_CENTER: [number, number] = [-75.46392, 5.25465];
+const GLOBAL_ZOOM = 9.20;
+const GLOBAL_PITCH = 55.0;
+const GLOBAL_BEARING = -16.5;
 
 const STYLE_DARK = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
 const STYLE_LIGHT = 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json';
@@ -66,7 +67,7 @@ export default function AppMap() {
     latitude: CALDAS_CENTER[1],
     zoom: GLOBAL_ZOOM,
     pitch: GLOBAL_PITCH,
-    bearing: 0,
+    bearing: GLOBAL_BEARING,
   }), []);
 
   const mapMaxBounds = useMemo<[[number, number], [number, number]] | undefined>(() => {
@@ -112,7 +113,7 @@ export default function AppMap() {
       center: CALDAS_CENTER,
       zoom: GLOBAL_ZOOM,
       pitch: GLOBAL_PITCH,
-      bearing: 0,
+      bearing: GLOBAL_BEARING,
       padding: { left: isSidebarOpen ? 320 : 0, right: 0, top: 0, bottom: 0 },
       duration: 2000,
       essential: true,
@@ -253,6 +254,7 @@ export default function AppMap() {
           }
         }}
       >
+
         <Source
           id="terrain-source"
           type="raster-dem"

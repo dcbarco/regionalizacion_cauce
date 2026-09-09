@@ -28,7 +28,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [activeSedeId, setActiveSedeId] = useState<string | null>(null);
   const [isSidebarOpen, setSidebarOpen] = useState(true);
   const [isVideoModalOpen, setVideoModalOpen] = useState(false);
-  const [theme, setTheme] = useState<Theme>('dark');
+  const [theme, setTheme] = useState<Theme>('light');
 
   const toggleTheme = useCallback(() => {
     setTheme(prev => prev === 'dark' ? 'light' : 'dark');
