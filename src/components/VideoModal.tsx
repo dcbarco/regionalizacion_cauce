@@ -48,7 +48,7 @@ export default function VideoModal() {
             </button>
 
             {/* Video Player */}
-            <div className="flex-1 relative h-full" style={{ backgroundColor: isLight ? '#0f172a' : 'rgba(0,0,0,0.9)' }}>
+            <div className="flex-1 relative h-[50%] md:h-full min-h-0 min-w-0" style={{ backgroundColor: isLight ? '#0f172a' : 'rgba(0,0,0,0.9)' }}>
               <video
                 key={activeVideo.id}
                 src={activeVideo.src}
@@ -60,7 +60,7 @@ export default function VideoModal() {
 
             {/* Playlist Sidebar */}
             <div
-              className="w-full md:w-[350px] flex flex-col h-full"
+              className="w-full md:w-[350px] flex flex-col h-[50%] md:h-full min-h-0 shrink-0"
               style={{
                 backgroundColor: isLight ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.4)',
                 borderLeft: `1px solid ${isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.1)'}`,

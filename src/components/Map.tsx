@@ -8,6 +8,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { SEDES_DATA } from '../data/sedesData';
 import { getMpioCoordinates } from '../data/coordinates';
 import caldasBoundary from '../data/caldasBoundary.json';
+import type { Map as MaplibreMap } from 'maplibre-gl';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -40,6 +41,7 @@ export default function AppMap() {
     activeSedeId,
     setActiveSedeId,
     isSidebarOpen,
+    isVideoModalOpen,
     setVideoModalOpen,
     theme,
   } = useAppStore();
@@ -49,8 +51,14 @@ export default function AppMap() {
   const waterPulseAnimRef = useRef<number | null>(null);
   const pulseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isRotating = useRef(false);
+  const lastRotationTime = useRef(0);
   const [waterOpacity, setWaterOpacity] = useState(0);
   const [isPulsingWater, setIsPulsingWater] = useState(true);
+
+  // Performance: Cache water layer IDs to avoid iterating all layers every frame
+  const waterFillLayerIds = useRef<string[]>([]);
+  const waterLineLayerIds = useRef<string[]>([]);
+  const waterLayersCached = useRef(false);
 
   const isLocal = !!activeMunicipality;
   const isLight = theme === 'light';
@@ -59,6 +67,21 @@ export default function AppMap() {
     'raster-opacity': isLocal ? 1 : 0,
     'raster-opacity-transition': { duration: 1500 }
   }), [isLocal]);
+
+  // Build and cache water layer IDs from the current style
+  const cacheWaterLayerIds = useCallback((map: MaplibreMap) => {
+    const layers = map.getStyle()?.layers;
+    if (!layers) return;
+    const fills: string[] = [];
+    const lines: string[] = [];
+    for (const layer of layers) {
+      if (layer.id.includes('water') && layer.type === 'fill') fills.push(layer.id);
+      if (layer.id.includes('waterway') && layer.type === 'line') lines.push(layer.id);
+    }
+    waterFillLayerIds.current = fills;
+    waterLineLayerIds.current = lines;
+    waterLayersCached.current = true;
+  }, []);
 
   const mapStyle = isLight ? STYLE_LIGHT : STYLE_DARK;
 
@@ -70,45 +93,54 @@ export default function AppMap() {
     bearing: GLOBAL_BEARING,
   }), []);
 
-  const mapMaxBounds = useMemo<[[number, number], [number, number]] | undefined>(() => {
-    if (!activeMunicipality) return undefined;
-    const [lng, lat] = activeMunicipality.coordinates;
-    return [
-      [lng - 0.15, lat - 0.15],
-      [lng + 0.15, lat + 0.15],
-    ];
+  // Set maxBounds imperatively so it can be properly cleared for global resets
+  useEffect(() => {
+    const map = mapRef.current?.getMap();
+    if (!map) return;
+    if (activeMunicipality) {
+      const [lng, lat] = activeMunicipality.coordinates;
+      map.setMaxBounds([
+        [lng - 0.15, lat - 0.15],
+        [lng + 0.15, lat + 0.15],
+      ]);
+    } else {
+      map.setMaxBounds(null);
+    }
   }, [activeMunicipality]);
 
   const updateWaterLayers = useCallback((overrideOpacity?: number) => {
     const map = mapRef.current?.getMap();
-    if (!map) return;
+    if (!map || !map.isStyleLoaded()) return;
 
     try {
-      const waterColor = isLight ? '#38bdf8' : '#00E5FF';
-      const layers = map.getStyle()?.layers;
-      if (!layers) return;
+      // Rebuild cache if needed (e.g. after style change)
+      if (!waterLayersCached.current) {
+        cacheWaterLayerIds(map);
+      }
 
+      const waterColor = isLight ? '#38bdf8' : '#00E5FF';
       const opacity = overrideOpacity !== undefined ? overrideOpacity : waterOpacity;
 
-      layers.forEach((layer) => {
-        if (layer.id.includes('water') && layer.type === 'fill') {
-          map.setPaintProperty(layer.id, 'fill-color', waterColor);
-          map.setPaintProperty(layer.id, 'fill-opacity', isLocal ? opacity * 0.8 : opacity * 0.5);
-        }
-        if (layer.id.includes('waterway') && layer.type === 'line') {
-          map.setPaintProperty(layer.id, 'line-color', waterColor);
-          map.setPaintProperty(layer.id, 'line-opacity', isLocal ? opacity : opacity * 0.8);
-          map.setPaintProperty(layer.id, 'line-width', isLocal ? 3 : 1);
-        }
-      });
+      // Use cached layer IDs instead of iterating ALL layers
+      for (const id of waterFillLayerIds.current) {
+        map.setPaintProperty(id, 'fill-color', waterColor);
+        map.setPaintProperty(id, 'fill-opacity', isLocal ? opacity * 0.8 : opacity * 0.5);
+      }
+      for (const id of waterLineLayerIds.current) {
+        map.setPaintProperty(id, 'line-color', waterColor);
+        map.setPaintProperty(id, 'line-opacity', isLocal ? opacity : opacity * 0.8);
+        map.setPaintProperty(id, 'line-width', isLocal ? 3 : 1);
+      }
     } catch (err) {
       console.warn("Could not override water layers", err);
     }
-  }, [isLocal, waterOpacity, isLight]);
+  }, [isLocal, waterOpacity, isLight, cacheWaterLayerIds]);
 
   const flyToGlobal = useCallback(() => {
     const map = mapRef.current?.getMap();
     if (!map) return;
+    // Ensure no maxBounds constraints when returning to global view
+    map.setMaxBounds(null);
     map.flyTo({
       center: CALDAS_CENTER,
       zoom: GLOBAL_ZOOM,
@@ -148,23 +180,28 @@ export default function AppMap() {
       map.once('moveend', () => {
         if (!activeMunicipality || isRotating.current) return;
         isRotating.current = true;
+        lastRotationTime.current = performance.now();
         let bearing = map.getBearing();
 
-        const animate = () => {
+        const animate = (now: number) => {
           if (!isRotating.current) return;
-          bearing += 0.1;
+          // Time-delta-based rotation for consistent speed regardless of frame rate
+          const delta = now - lastRotationTime.current;
+          lastRotationTime.current = now;
+          // 6 degrees per second → 0.006 deg/ms
+          bearing += delta * 0.006;
           map.setBearing(bearing % 360);
           animationRef.current = requestAnimationFrame(animate);
         };
-        animate();
+        animationRef.current = requestAnimationFrame(animate);
       });
-    } else {
+    } else if (!activeSedeId) {
       map.setMaxBounds(null);
       flyToGlobal();
     }
 
     return stopRotation;
-  }, [activeMunicipality, stopRotation, flyToGlobal]);
+  }, [activeMunicipality, activeSedeId, stopRotation, flyToGlobal]);
 
   const prevActiveMunicipalityRef = useRef(activeMunicipality);
 
@@ -186,16 +223,24 @@ export default function AppMap() {
   useEffect(() => {
     const map = mapRef.current?.getMap();
     if (!map) return;
-    if (map.isStyleLoaded()) updateWaterLayers();
-    
-    const handleStyleLoad = () => updateWaterLayers();
+
+    const handleStyleLoad = () => {
+      // Invalidate cache when style changes
+      waterLayersCached.current = false;
+      cacheWaterLayerIds(map);
+      updateWaterLayers();
+    };
+
+    if (map.isStyleLoaded()) {
+      handleStyleLoad();
+    }
     map.on('style.load', handleStyleLoad);
     return () => {
       map.off('style.load', handleStyleLoad);
     };
-  }, [updateWaterLayers]);
+  }, [updateWaterLayers, cacheWaterLayerIds]);
 
-  // Water pulse animation loop
+  // Water pulse animation loop — throttled to ~20fps for performance
   useEffect(() => {
     if (!isPulsingWater) {
       if (waterPulseAnimRef.current !== null) {
@@ -206,15 +251,25 @@ export default function AppMap() {
       return;
     }
 
-    let start = Date.now();
-    const animatePulse = () => {
+    const start = performance.now();
+    let lastUpdate = 0;
+    const THROTTLE_MS = 50; // ~20fps is plenty for a gentle water pulse
+
+    const animatePulse = (now: number) => {
+      // Throttle: skip frames if not enough time has passed
+      if (now - lastUpdate < THROTTLE_MS) {
+        waterPulseAnimRef.current = requestAnimationFrame(animatePulse);
+        return;
+      }
+      lastUpdate = now;
+
       const map = mapRef.current?.getMap();
       if (!map || !map.isStyleLoaded()) {
         waterPulseAnimRef.current = requestAnimationFrame(animatePulse);
         return;
       }
       
-      const elapsed = Date.now() - start;
+      const elapsed = now - start;
       const rawSine = Math.sin((elapsed / 2500) * 2 * Math.PI); // full cycle every 2.5s
       const pulsedValue = 0.2 + ((rawSine + 1) / 2) * 0.6; // oscillates between 0.2 and 0.8
       
@@ -241,7 +296,6 @@ export default function AppMap() {
         mapStyle={mapStyle}
         onDragStart={stopRotation}
         terrain={{ source: 'terrain-source', exaggeration: 1.5 }}
-        maxBounds={mapMaxBounds}
         onClick={(e) => {
           if (isLocal) {
             setActiveInstitutionId(null);
@@ -290,9 +344,11 @@ export default function AppMap() {
               onToggle={(willBeActive: boolean) => {
                 setActiveSedeId(willBeActive ? sede.id : null);
                 if (willBeActive && mapRef.current) {
-                  mapRef.current.flyTo({
+                  mapRef.current.getMap().flyTo({
                     center: sede.coordinates,
                     zoom: 9.5,
+                    pitch: GLOBAL_PITCH,
+                    bearing: GLOBAL_BEARING,
                     duration: 1500,
                     essential: true,
                   });
@@ -307,7 +363,7 @@ export default function AppMap() {
 
         {!isLocal && activeSede && <SedeDetailPanel sede={activeSede} isLight={isLight} />}
 
-        {!isLocal && (
+        {!isLocal && !isVideoModalOpen && (
           <div className="absolute bottom-8 left-[calc(50%+160px)] -translate-x-1/2 z-[100] flex items-center gap-4">
             <div 
               className="flex flex-col items-center px-6 py-3 rounded-full shadow-2xl backdrop-blur-md border border-white/20"
