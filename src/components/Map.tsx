@@ -268,6 +268,14 @@ export default function AppMap() {
         waterPulseAnimRef.current = requestAnimationFrame(animatePulse);
         return;
       }
+
+      // OPTIMIZACIÓN: Pausar pulso de agua durante el vuelo de la cámara o rotación
+      // Esto libera la GPU para concentrarse 100% en mantener 60fps en el movimiento
+      if (map.isMoving() || isRotating.current) {
+        lastUpdate = now;
+        waterPulseAnimRef.current = requestAnimationFrame(animatePulse);
+        return;
+      }
       
       const elapsed = now - start;
       const rawSine = Math.sin((elapsed / 2500) * 2 * Math.PI); // full cycle every 2.5s
@@ -429,6 +437,19 @@ interface SedeMarkerProps {
 }
 
 function SedeMarker({ sede, isActive, isFaded, isLight, onToggle }: SedeMarkerProps) {
+  const [showImpacts, setShowImpacts] = useState(false);
+
+  // OPTIMIZACIÓN: Retrasar el renderizado en el DOM de los marcadores de zonas impactadas 
+  // hasta que termine la animación WebGL flyTo (1500ms). Esto evita caídas de frames al hacer clic.
+  useEffect(() => {
+    if (isActive) {
+      const t = setTimeout(() => setShowImpacts(true), 1500);
+      return () => clearTimeout(t);
+    } else {
+      setShowImpacts(false);
+    }
+  }, [isActive]);
+
   return (
     <>
       <Marker
@@ -492,7 +513,7 @@ function SedeMarker({ sede, isActive, isFaded, isLight, onToggle }: SedeMarkerPr
       </Marker>
 
       {/* Impact zone markers */}
-      {isActive &&
+      {isActive && showImpacts &&
         sede.impacted.map((mpioName, i) => {
           const coords = getMpioCoordinates(mpioName);
           if (!coords) return null;
