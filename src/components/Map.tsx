@@ -6,7 +6,7 @@ import { Landmark, Droplet, PlayCircle, Maximize2, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { SEDES_DATA } from '../data/sedesData';
-import { getMpioCoordinates } from '../data/coordinates';
+import { getMpioCoordinates, getMpioCameraConfig } from '../data/coordinates';
 import caldasBoundary from '../data/caldasBoundary.json';
 import type { Map as MaplibreMap } from 'maplibre-gl';
 
@@ -55,6 +55,8 @@ export default function AppMap() {
   const [waterOpacity, setWaterOpacity] = useState(0);
   const [isPulsingWater, setIsPulsingWater] = useState(true);
 
+
+
   // Performance: Cache water layer IDs to avoid iterating all layers every frame
   const waterFillLayerIds = useRef<string[]>([]);
   const waterLineLayerIds = useRef<string[]>([]);
@@ -98,7 +100,8 @@ export default function AppMap() {
     const map = mapRef.current?.getMap();
     if (!map) return;
     if (activeMunicipality) {
-      const [lng, lat] = activeMunicipality.coordinates;
+      const camConfig = getMpioCameraConfig(activeMunicipality.name);
+      const [lng, lat] = camConfig.center;
       map.setMaxBounds([
         [lng - 0.15, lat - 0.15],
         [lng + 0.15, lat + 0.15],
@@ -168,10 +171,12 @@ export default function AppMap() {
     stopRotation();
 
     if (activeMunicipality) {
+      const camConfig = getMpioCameraConfig(activeMunicipality.name);
       map.flyTo({
-        center: activeMunicipality.coordinates,
-        zoom: 14.5,
-        pitch: 65,
+        center: camConfig.center,
+        zoom: camConfig.zoom ?? 14.5,
+        pitch: camConfig.pitch ?? 65,
+        bearing: camConfig.bearing ?? 0,
         padding: { left: isSidebarOpen ? 320 : 0, right: 0, top: 0, bottom: 0 },
         duration: 3000,
         essential: true,
@@ -188,8 +193,8 @@ export default function AppMap() {
           // Time-delta-based rotation for consistent speed regardless of frame rate
           const delta = now - lastRotationTime.current;
           lastRotationTime.current = now;
-          // 6 degrees per second → 0.006 deg/ms
-          bearing += delta * 0.006;
+          // 3 degrees per second → 0.003 deg/ms
+          bearing += delta * 0.003;
           map.setBearing(bearing % 360);
           animationRef.current = requestAnimationFrame(animate);
         };
@@ -296,6 +301,8 @@ export default function AppMap() {
 
   const activeSede = SEDES_DATA.find(s => s.id === activeSedeId);
 
+
+
   return (
     <div className="absolute inset-0 w-full h-full" style={{ backgroundColor: isLight ? '#e8eef5' : '#000' }}>
       <MapGL
@@ -303,6 +310,15 @@ export default function AppMap() {
         initialViewState={initialViewState}
         mapStyle={mapStyle}
         onDragStart={stopRotation}
+        onMoveEnd={(evt) => {
+          const info = {
+            center: [Number(evt.viewState.longitude.toFixed(5)), Number(evt.viewState.latitude.toFixed(5))],
+            zoom: Number(evt.viewState.zoom.toFixed(2)),
+            pitch: Number(evt.viewState.pitch.toFixed(1)),
+            bearing: Number(evt.viewState.bearing.toFixed(1)),
+          };
+          console.log('🎥 CAMERA_POSITION:', JSON.stringify(info, null, 2));
+        }}
         terrain={{ source: 'terrain-source', exaggeration: 1.5 }}
         onClick={(e) => {
           if (isLocal) {
